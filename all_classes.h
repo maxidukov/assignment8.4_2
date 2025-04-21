@@ -2,18 +2,14 @@
 #define ALL_CLASSES_H
 
 #include <fstream>
+#include <memory> //FOR std::unique_ptr
+
+class PrintableText;
+class PrintableHTML;
+class PrintableJSON;
+
 
 class Printable
-{
-public:
-    virtual ~Printable() = default;
-
-    virtual std::string printAsHTML() const = 0;
-    virtual std::string printAsText() const = 0;
-    virtual std::string printAsJSON() const = 0;
-};
-
-class Data : public Printable
 {
 public:
     enum class Format
@@ -22,64 +18,61 @@ public:
         kHTML,
         kJSON
     };
-
-    Data(std::string data, Format format)
-        : data_(std::move(data)), format_(format) {}
-
-    std::string printAsHTML() const override
-    {
-        if (format_ != Format::kHTML) {
-            throw std::runtime_error("Invalid format!");
-        }
-        return "<html>" + data_ + "<html/>";
-    }
-    std::string printAsText() const override
-    {
-        if (format_ != Format::kText) {
-            throw std::runtime_error("Invalid format!");
-        }
-        return data_;
-    }
-    std::string printAsJSON() const override
-    {
-        if (format_ != Format::kJSON) {
-            throw std::runtime_error("Invalid format!");
-        }
-        return "{ \"data\": \"" + data_ + "\"}";
-    }
-
-private:
-    std::string data_;
+protected:
     Format format_;
+    std::string data_;
+
+public:
+
+    // virtual ~Printable();
+    Printable(std::string data, Format format): data_(data), format_(format) {}
+
+    virtual std::string print() const { return data_; }; //NO LONGER PURE VIRTUAL
+    void saveTo(std::ofstream &file){
+        file << print() << std::endl;
+    }
+    std::unique_ptr<Printable> MakePrintable(); //DEFINED DOWN BELOW, BECAUSE ALL DERIVED TYPES NEEDED
 };
 
-void saveTo(std::ofstream &file, const Printable& printable, Data::Format format)
-{
-    switch (format)
-    {
-    case Data::Format::kText:
-        file << printable.printAsText();
-        break;
-    case Data::Format::kJSON:
-        file << printable.printAsJSON();
-        break;
-    case Data::Format::kHTML:
-        file << printable.printAsHTML();
-        break;
+class PrintableText : public Printable{
+    Format format_;
+    std::string data_;
+public:
+    PrintableText(std::string data): Printable(data,Printable::Format::kText), data_(data){}
+    std::string print() const override{
+        return data_;
+    }
+};
+
+class PrintableHTML : public Printable{
+    Format format_;
+    std::string data_;
+public:
+    PrintableHTML(std::string data): Printable(data,Printable::Format::kHTML), data_(data){}
+    std::string print() const override{
+        return "<html>" + data_ + "<html/>";
+    }
+};
+
+class PrintableJSON : public Printable{
+    Format format_;
+    std::string data_;
+public:
+    PrintableJSON(std::string data): Printable(data,Printable::Format::kJSON), data_(data){}
+    std::string print() const override{
+        return "{ \"data\": \"" + data_ + "\"}";
+    }
+};
+
+std::unique_ptr<Printable>Printable::MakePrintable(){
+    switch(format_){
+    case Printable::Format::kText: return std::unique_ptr<Printable>(new PrintableText(data_));break;
+    case Printable::Format::kHTML: return std::make_unique<PrintableHTML>(data_);break;
+    case Printable::Format::kJSON: return std::make_unique<PrintableJSON>(data_);break;
+    default: return std::make_unique<PrintableText>(data_); break;
     }
 }
 
-void saveToAsHTML(std::ofstream &file, const Printable& printable) {
-    saveTo(file, printable, Data::Format::kHTML);
-}
-
-void saveToAsJSON(std::ofstream &file, const Printable& printable) {
-    saveTo(file, printable, Data::Format::kJSON);
-}
-
-void saveToAsText(std::ofstream &file, const Printable& printable) {
-    saveTo(file, printable, Data::Format::kText);
-}
 
 #endif // ALL_CLASSES_H
 
